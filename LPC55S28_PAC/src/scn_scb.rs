@@ -1,0 +1,11 @@
+#[doc = r"Register block"]
+#[repr(C)]
+pub struct RegisterBlock {
+    _reserved0: [u8; 0x0c],
+    #[doc = "0x0c - Coprocessor Power Control Register"]
+    pub cppwr: CPPWR,
+}
+#[doc = "CPPWR (rw) register accessor: an alias for `Reg<CPPWR_SPEC>`"]
+pub type CPPWR = crate::Reg<cppwr::CPPWR_SPEC>;
+#[doc = "Coprocessor Power Control Register"]
+pub mod cppwr;

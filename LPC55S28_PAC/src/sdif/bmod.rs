@@ -1,0 +1,140 @@
+#[doc = "Register `BMOD` reader"]
+pub struct R(crate::R<BMOD_SPEC>);
+impl core::ops::Deref for R {
+    type Target = crate::R<BMOD_SPEC>;
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl From<crate::R<BMOD_SPEC>> for R {
+    #[inline(always)]
+    fn from(reader: crate::R<BMOD_SPEC>) -> Self {
+        R(reader)
+    }
+}
+#[doc = "Register `BMOD` writer"]
+pub struct W(crate::W<BMOD_SPEC>);
+impl core::ops::Deref for W {
+    type Target = crate::W<BMOD_SPEC>;
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl core::ops::DerefMut for W {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl From<crate::W<BMOD_SPEC>> for W {
+    #[inline(always)]
+    fn from(writer: crate::W<BMOD_SPEC>) -> Self {
+        W(writer)
+    }
+}
+#[doc = "Field `SWR` reader - Software Reset."]
+pub type SWR_R = crate::BitReader<bool>;
+#[doc = "Field `SWR` writer - Software Reset."]
+pub type SWR_W<'a, const O: u8> = crate::BitWriter<'a, u32, BMOD_SPEC, bool, O>;
+#[doc = "Field `FB` reader - Fixed Burst."]
+pub type FB_R = crate::BitReader<bool>;
+#[doc = "Field `FB` writer - Fixed Burst."]
+pub type FB_W<'a, const O: u8> = crate::BitWriter<'a, u32, BMOD_SPEC, bool, O>;
+#[doc = "Field `DSL` reader - Descriptor Skip Length."]
+pub type DSL_R = crate::FieldReader<u8, u8>;
+#[doc = "Field `DSL` writer - Descriptor Skip Length."]
+pub type DSL_W<'a, const O: u8> = crate::FieldWriter<'a, u32, BMOD_SPEC, u8, u8, 5, O>;
+#[doc = "Field `DE` reader - SD/MMC DMA Enable."]
+pub type DE_R = crate::BitReader<bool>;
+#[doc = "Field `DE` writer - SD/MMC DMA Enable."]
+pub type DE_W<'a, const O: u8> = crate::BitWriter<'a, u32, BMOD_SPEC, bool, O>;
+#[doc = "Field `PBL` reader - Programmable Burst Length."]
+pub type PBL_R = crate::FieldReader<u8, u8>;
+#[doc = "Field `PBL` writer - Programmable Burst Length."]
+pub type PBL_W<'a, const O: u8> = crate::FieldWriter<'a, u32, BMOD_SPEC, u8, u8, 3, O>;
+impl R {
+    #[doc = "Bit 0 - Software Reset."]
+    #[inline(always)]
+    pub fn swr(&self) -> SWR_R {
+        SWR_R::new((self.bits & 1) != 0)
+    }
+    #[doc = "Bit 1 - Fixed Burst."]
+    #[inline(always)]
+    pub fn fb(&self) -> FB_R {
+        FB_R::new(((self.bits >> 1) & 1) != 0)
+    }
+    #[doc = "Bits 2:6 - Descriptor Skip Length."]
+    #[inline(always)]
+    pub fn dsl(&self) -> DSL_R {
+        DSL_R::new(((self.bits >> 2) & 0x1f) as u8)
+    }
+    #[doc = "Bit 7 - SD/MMC DMA Enable."]
+    #[inline(always)]
+    pub fn de(&self) -> DE_R {
+        DE_R::new(((self.bits >> 7) & 1) != 0)
+    }
+    #[doc = "Bits 8:10 - Programmable Burst Length."]
+    #[inline(always)]
+    pub fn pbl(&self) -> PBL_R {
+        PBL_R::new(((self.bits >> 8) & 7) as u8)
+    }
+}
+impl W {
+    #[doc = "Bit 0 - Software Reset."]
+    #[inline(always)]
+    #[must_use]
+    pub fn swr(&mut self) -> SWR_W<0> {
+        SWR_W::new(self)
+    }
+    #[doc = "Bit 1 - Fixed Burst."]
+    #[inline(always)]
+    #[must_use]
+    pub fn fb(&mut self) -> FB_W<1> {
+        FB_W::new(self)
+    }
+    #[doc = "Bits 2:6 - Descriptor Skip Length."]
+    #[inline(always)]
+    #[must_use]
+    pub fn dsl(&mut self) -> DSL_W<2> {
+        DSL_W::new(self)
+    }
+    #[doc = "Bit 7 - SD/MMC DMA Enable."]
+    #[inline(always)]
+    #[must_use]
+    pub fn de(&mut self) -> DE_W<7> {
+        DE_W::new(self)
+    }
+    #[doc = "Bits 8:10 - Programmable Burst Length."]
+    #[inline(always)]
+    #[must_use]
+    pub fn pbl(&mut self) -> PBL_W<8> {
+        PBL_W::new(self)
+    }
+    #[doc = "Writes raw bits to the register."]
+    #[inline(always)]
+    pub unsafe fn bits(&mut self, bits: u32) -> &mut Self {
+        self.0.bits(bits);
+        self
+    }
+}
+#[doc = "Bus Mode register\n\nThis register you can [`read`](crate::generic::Reg::read), [`write_with_zero`](crate::generic::Reg::write_with_zero), [`reset`](crate::generic::Reg::reset), [`write`](crate::generic::Reg::write), [`modify`](crate::generic::Reg::modify). See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [bmod](index.html) module"]
+pub struct BMOD_SPEC;
+impl crate::RegisterSpec for BMOD_SPEC {
+    type Ux = u32;
+}
+#[doc = "`read()` method returns [bmod::R](R) reader structure"]
+impl crate::Readable for BMOD_SPEC {
+    type Reader = R;
+}
+#[doc = "`write(|w| ..)` method takes [bmod::W](W) writer structure"]
+impl crate::Writable for BMOD_SPEC {
+    type Writer = W;
+    const ZERO_TO_MODIFY_FIELDS_BITMAP: Self::Ux = 0;
+    const ONE_TO_MODIFY_FIELDS_BITMAP: Self::Ux = 0;
+}
+#[doc = "`reset()` method sets BMOD to value 0"]
+impl crate::Resettable for BMOD_SPEC {
+    const RESET_VALUE: Self::Ux = 0;
+}

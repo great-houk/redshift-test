@@ -1,0 +1,25 @@
+[package]
+authors = ["Tyler Richard <tylergames251@gmail.com>"]
+name = "redshift-test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m = { version = "0.7.7", features = ["critical-section-single-core"]}
+cortex-m-rt = { version = "0.7.2", features = ["device"] }
+cortex-m-semihosting = { version = "0.5.0" }
+panic-semihosting = "0.6.0"
+LPC55S28-PAC = { path = "./LPC55S28_PAC", features = ["rt", "critical-section"] }
+
+[profile.release]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size on Flash
+lto = true # better optimizations
+
+# this lets you use `cargo fix`!
+[[bin]]
+name = "redshift-test"
+test = false
+bench = false

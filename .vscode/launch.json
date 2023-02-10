@@ -1,0 +1,42 @@
+{
+    "configurations": [
+        {
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Cargo Build (debug)",
+            "executable": "./target/thumbv8m.main-none-eabi/debug/redshift-test",
+            "name": "Debug with PyOCD (Debug)",
+            "request": "launch",
+            "type": "cortex-debug",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "servertype": "pyocd",
+            "targetId": "LPC55S28",
+            "serverArgs": [
+                "-Oenable_semihosting=true",
+                "-Osemihost_console_type=console",
+            ],
+            "preLaunchCommands": [
+                "monitor arm semihosting enable", // Enable Semihosting
+            ]
+        },
+        {
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Cargo Build (release)",
+            "executable": "./target/thumbv8m.main-none-eabi/debug/redshift-test",
+            "name": "Debug with PyOCD (Release)",
+            "request": "launch",
+            "type": "cortex-debug",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "servertype": "pyocd",
+            "targetId": "LPC55S28",
+            "serverArgs": [
+                "-Oenable_semihosting=true",
+                "-Osemihost_console_type=console",
+            ],
+            "preLaunchCommands": [
+                "monitor arm semihosting enable", // Enable Semihosting
+            ]
+        }
+    ]
+}
