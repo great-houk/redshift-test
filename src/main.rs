@@ -1,18 +1,26 @@
 #![no_std]
 #![no_main]
-use core::fmt::Write;
-use cortex_m_semihosting::hio;
-use panic_semihosting as _;
+// use core::fmt::Write;
+// use cortex_m_semihosting::hio;
+// use panic_semihosting as _;
+use defmt::*;
+use defmt_rtt as _;
+use panic_probe as _;
 use LPC55S28_PAC as _;
 
-// This function will be called by the application
-fn print() -> Result<(), core::fmt::Error> {
-    let mut stdout = hio::hstdout().map_err(|_| core::fmt::Error)?;
-    let language = "Rust";
-    let ranking = 1;
+// // This function will be called by the application
+// fn print() -> Result<(), core::fmt::Error> {
+//     let mut stdout = hio::hstdout().map_err(|_| core::fmt::Error)?;
+//     let language = "Rust";
+//     let ranking = 1;
 
-    writeln!(stdout, "{} on embedded is #{}!", language, ranking)?;
+//     writeln!(stdout, "{} on embedded is #{}!", language, ranking)?;
 
+//     Ok(())
+// }
+
+fn print() -> Result<(), ()> {
+    info!("Hi there!");
     Ok(())
 }
 

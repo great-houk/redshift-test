@@ -9,8 +9,14 @@ edition = "2021"
 [dependencies]
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core"]}
 cortex-m-rt = { version = "0.7.2", features = ["device"] }
-cortex-m-semihosting = { version = "0.5.0" }
-panic-semihosting = "0.6.0"
+
+defmt = "0.3"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+
+# cortex-m-semihosting = { version = "0.5.0" }
+# panic-semihosting = "0.6.0"
+
 LPC55S28-PAC = { path = "./LPC55S28_PAC", features = ["rt", "critical-section"] }
 
 [profile.release]

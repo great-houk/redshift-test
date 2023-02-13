@@ -1,8 +1,10 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 rustflags = [
   # --- KEEP existing `link-arg` flags ---
-  "-C", "link-arg=-Tlink.x",
+  "-C", "linker=flip-link",
   "-C", "link-arg=--nmagic",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [build]

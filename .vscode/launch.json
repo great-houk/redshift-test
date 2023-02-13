@@ -17,7 +17,18 @@
             ],
             "preLaunchCommands": [
                 "monitor arm semihosting enable", // Enable Semihosting
-            ]
+            ],
+            "rttConfig": {
+                "enabled": true,
+                "address": "auto",
+                // "clearSearch": false    // OpenOCD users may have to un-comment this
+                "decoders": [
+                    {
+                        "port": 0,
+                        "type": "console"
+                    }
+                ]
+            }
         },
         {
             "cwd": "${workspaceFolder}",
