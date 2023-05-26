@@ -2,10 +2,9 @@
 #![no_main]
 use panic_rtt_target as _;
 use rtt_target::{
-    self as rtt_t, rdbg as dbg, rprint as print, rprintln, rprintln as println, rtt_init_default,
+    self as rtt_t, rdbg as dbg, rprintln, rtt_init_default,
 };
-use LPC55S28_HAL as hal;
-use LPC55S28_PAC as pac;
+use LPC55S28_HAL::{LPC55S28_PAC as pac};
 
 fn run() -> ! {
     let peripherals = pac::Peripherals::take().unwrap();
