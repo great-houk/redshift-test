@@ -12,6 +12,7 @@ cortex-m-rt = { version = "0.7.2", features = ["device"] }
 LPC55S28-PAC = { path = "./LPC55S28_PAC", features = ["rt", "critical-section"] }
 panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
 rtt-target = "0.4.0"
+LPC55S28_HAL = { version = "0.1.0", path = "LPC55S28_HAL" }
 
 [profile.release]
 codegen-units = 1 # better optimizations
