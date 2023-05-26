@@ -1,9 +1,8 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 rustflags = [
-  # --- KEEP existing `link-arg` flags ---
   "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=--nmagic",
 ]
 
 [build]
-target = "thumbv8m.main-none-eabi"
+target = "thumbv8m.main-none-eabihf"

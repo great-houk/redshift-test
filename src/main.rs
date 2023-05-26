@@ -1,24 +1,13 @@
 #![no_std]
 #![no_main]
-use core::fmt::Write;
-use cortex_m_semihosting::hio;
-use panic_semihosting as _;
-use LPC55S28_PAC as _;
+use panic_rtt_target as _;
+use rtt_target::{
+    self as rtt_t, rdbg as dbg, rprint as print, rprintln, rprintln as println, rtt_init_default,
+};
+use LPC55S28_PAC as pac;
 
-// This function will be called by the application
-fn print() -> Result<(), core::fmt::Error> {
-    let mut stdout = hio::hstdout().map_err(|_| core::fmt::Error)?;
-    let language = "Rust";
-    let ranking = 1;
-
-    writeln!(stdout, "{} on embedded is #{}!", language, ranking)?;
-
-    Ok(())
-}
-
-#[cortex_m_rt::entry]
-fn main() -> ! {
-    let peripherals = LPC55S28_PAC::Peripherals::take().unwrap();
+fn run() -> ! {
+    let peripherals = pac::Peripherals::take().unwrap();
     let SYSCON = peripherals.SYSCON;
     // Enable GPIO block
     SYSCON
@@ -41,7 +30,15 @@ fn main() -> ! {
         }
         on = !on;
 
-        // Print stuff
-        print().unwrap();
+        // Print
+        dbg!("Hello, world!");
     }
+}
+
+#[cortex_m_rt::entry]
+fn entry() -> ! {
+    let rtt = rtt_init_default!();
+    rtt_t::set_print_channel(rtt.up.0);
+    rprintln!("Start up finished!");
+    run();
 }
