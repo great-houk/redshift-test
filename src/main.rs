@@ -1,14 +1,18 @@
 #![no_std]
 #![no_main]
 use panic_rtt_target as _;
-use rtt_target::{
-    self as rtt_t, rdbg as dbg, rprintln, rtt_init_default,
-};
-use LPC55S28_HAL::{LPC55S28_PAC as pac};
+use rtt_target::{self as rtt_t, rdbg as dbg, rprintln, rtt_init_default};
+use LPC55S28_PAC as pac;
+
+pub mod setup;
 
 fn run() -> ! {
     let peripherals = pac::Peripherals::take().unwrap();
     let SYSCON = peripherals.SYSCON;
+
+    // Setup default system values
+    setup::setup_main_clock_96mhz(&SYSCON);
+
     // Enable GPIO block
     SYSCON
         .ahbclkctrl_ahbclkctrl0()
@@ -33,12 +37,4 @@ fn run() -> ! {
         // Print
         dbg!("Hello, world!");
     }
-}
-
-#[cortex_m_rt::entry]
-fn entry() -> ! {
-    let rtt = rtt_init_default!();
-    rtt_t::set_print_channel(rtt.up.0);
-    rprintln!("Start up finished!");
-    run();
 }
