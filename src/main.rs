@@ -1,57 +1,69 @@
 #![no_std]
 #![no_main]
+use cortex_m_rt as _;
+use hal::{
+    drivers::{pins, Timer, UsbBus},
+    time::RateExtensions,
+};
+use lpc55_hal as hal;
 use panic_rtt_target as _;
-use rtt_target::{self as rtt_t, rdbg as dbg, rprintln, rtt_init_default};
-use LPC55S28_PAC as pac;
+#[allow(unused)]
+use rtt_target::{rdbg as dbg, rprintln as println};
+use usb_device::device::{UsbDeviceBuilder, UsbVidPid};
+use usb_device::test_class::TestClass;
 
-pub mod setup;
+mod setup;
 
 fn run() -> ! {
-    let peripherals = pac::Peripherals::take().unwrap();
-    let SYSCON = peripherals.SYSCON;
-    let INPUTMUX = peripherals.INPUTMUX;
-    let ANACTRL = peripherals.ANACTRL;
+    let hal = hal::new();
 
-    // Setup default system values
-    setup::setup_main_clock_96mhz(&SYSCON);
+    let mut anactrl = hal.anactrl;
+    let mut syscon = hal.syscon;
+    let mut pmc = hal.pmc;
 
-    // Enable GPIO block
-    SYSCON
-        .ahbclkctrl_ahbclkctrl0()
-        .write(|w| w.gpio1().enable());
-    let gpio = peripherals.GPIO;
-    // Set output
-    gpio.dir[1].write(|w| w.dirp().variant(1 << 9));
-    let mut on = true;
+    let mut iocon = hal.iocon.enabled(&mut syscon);
+    let usb0_vbus_pin = pins::Pio0_22::take()
+        .unwrap()
+        .into_usb0_vbus_pin(&mut iocon);
+    iocon.disabled(&mut syscon); // perfectionist ;)
 
-    // Setup analog control
-    SYSCON
-        .ahbclkctrl_ahbclkctrl2()
-        .write(|w| w.analog_ctrl().enable().freqme().enable());
-    SYSCON.ahbclkctrl_ahbclkctrl0().write(|w| w.mux().enable());
-    INPUTMUX.freqmeas_ref.write(|w| w.clkin().variant(4)); // 96 Mhz reference
-    INPUTMUX.freqmeas_target.write(|w| w.clkin().variant(4)); // External
-    ANACTRL
-        .freq_me_ctrl
-        .write(|w| w.capval_scale().variant(11).prog().set_bit());
-    while ANACTRL.freq_me_ctrl.read().prog().bit_is_set() {}
-    let freq = (ANACTRL.freq_me_ctrl.read().capval_scale().bits() * 96_000_000) / ((1 << 11) - 1);
-    dbg!(ANACTRL.freq_me_ctrl.read().capval_scale().bits());
-    dbg!(freq);
+    let clocks = hal::ClockRequirements::default()
+        .system_frequency(96.MHz())
+        .configure(&mut anactrl, &mut pmc, &mut syscon)
+        .expect("Clock configuration failed");
+
+    let mut _delay_timer = Timer::new(
+        hal.ctimer
+            .0
+            .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+    );
+
+    let usb_peripheral = hal.usbfs.enabled_as_device(
+        &mut anactrl,
+        &mut pmc,
+        &mut syscon,
+        clocks.support_usbfs_token().unwrap(),
+    );
+
+    let usb_bus = UsbBus::new(usb_peripheral, usb0_vbus_pin);
+
+    const VID: u16 = 0x16c0;
+    const PID: u16 = 0x05dc;
+    const MANUFACTURER: &'static str = "TestClass Manufacturer";
+    const PRODUCT: &'static str = "virkkunen.net usb-device TestClass";
+    const SERIAL_NUMBER: &'static str = "TestClass Serial";
+
+    let mut test = TestClass::new(&usb_bus);
+    let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(VID, PID))
+        .manufacturer(MANUFACTURER)
+        .product(PRODUCT)
+        .serial_number(SERIAL_NUMBER)
+        .max_packet_size_0(64)
+        .build();
 
     loop {
-        // Delay a bit
-        cortex_m::asm::delay(12_000_000);
-
-        // Flip USER LED
-        if on {
-            gpio.b[1].b_[9].write(|w| w.pbyte().set_bit());
-        } else {
-            gpio.b[1].b_[9].write(|w| w.pbyte().clear_bit());
+        if usb_dev.poll(&mut [&mut test]) {
+            test.poll();
         }
-        on = !on;
-
-        // Print
-        dbg!("Hello, world!");
     }
 }

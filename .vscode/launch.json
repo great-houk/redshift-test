@@ -10,7 +10,7 @@
             "runToEntryPoint": "run",
             "showDevDebugOutput": "none",
             "servertype": "pyocd",
-            "targetId": "LPC55S28",
+            "targetId": "LPC5526",
             "svdFile": "./LPC55S28_PAC/LPC55S28.svd",
         },
         {
@@ -23,7 +23,7 @@
             "runToEntryPoint": "run",
             "showDevDebugOutput": "none",
             "servertype": "pyocd",
-            "targetId": "LPC55S28",
+            "targetId": "LPC5526",
             "svdFile": "./LPC55S28_PAC/LPC55S28.svd",
         }
     ]
