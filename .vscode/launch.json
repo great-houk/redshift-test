@@ -11,7 +11,7 @@
             "showDevDebugOutput": "none",
             "servertype": "pyocd",
             "targetId": "LPC5526",
-            "svdFile": "./LPC55S28_PAC/LPC55S28.svd",
+            "svdFile": "./LPC55S28.svd",
         },
         {
             "cwd": "${workspaceFolder}",
@@ -24,7 +24,7 @@
             "showDevDebugOutput": "none",
             "servertype": "pyocd",
             "targetId": "LPC5526",
-            "svdFile": "./LPC55S28_PAC/LPC55S28.svd",
+            "svdFile": "./LPC55S28.svd",
         }
     ]
 }

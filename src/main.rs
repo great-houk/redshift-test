@@ -32,17 +32,18 @@ fn run() -> ! {
         .configure(&mut anactrl, &mut pmc, &mut syscon)
         .expect("Clock configuration failed");
 
-    let mut _delay_timer = Timer::new(
+    let mut delay_timer = Timer::new(
         hal.ctimer
             .0
             .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
     );
 
-    let usb_peripheral = hal.usbfs.enabled_as_device(
+    let usb_peripheral = hal.usbhs.enabled_as_device(
         &mut anactrl,
         &mut pmc,
         &mut syscon,
-        clocks.support_usbfs_token().unwrap(),
+        &mut delay_timer,
+        clocks.support_usbhs_token().unwrap(),
     );
 
     let usb_bus = UsbBus::new(usb_peripheral, usb0_vbus_pin);
