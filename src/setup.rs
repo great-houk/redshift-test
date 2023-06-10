@@ -10,7 +10,5 @@ fn entry() -> ! {
 }
 
 pub fn setup_main_clock_96mhz(syscon: &SYSCON) {
-    let a = syscon.mainclksela.read().sel().variant();
-    rprintln!("{:?}", a);
     syscon.mainclksela.write(|w| w.sel().enum_0x3());
 }

@@ -7,14 +7,8 @@ use LPC55S28_PAC as pac;
 pub mod bus;
 
 struct USB {
-    inner: pac::USBHSD,
+    pub(crate) dev: pac::USBHSD,
+    pub(crate) phy: pac::USBPHY,
 }
 
 unsafe impl Sync for USB {}
-impl Deref for USB {
-    type Target = pac::USBHSD;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}

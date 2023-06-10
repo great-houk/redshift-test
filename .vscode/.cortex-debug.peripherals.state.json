@@ -1,1 +1,1 @@
-[]
+[{"node":"ANACTRL","expanded":true,"format":0,"pinned":false},{"node":"ANACTRL.ANALOG_CTRL_STATUS","expanded":true,"format":0},{"node":"ANACTRL.FREQ_ME_CTRL","expanded":true,"format":0},{"node":"INPUTMUX","expanded":true,"format":0,"pinned":false},{"node":"INPUTMUX.FREQMEAS_REF","expanded":true,"format":0},{"node":"INPUTMUX.FREQMEAS_TARGET","expanded":true,"format":0}]

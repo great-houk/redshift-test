@@ -9,6 +9,8 @@ pub mod setup;
 fn run() -> ! {
     let peripherals = pac::Peripherals::take().unwrap();
     let SYSCON = peripherals.SYSCON;
+    let INPUTMUX = peripherals.INPUTMUX;
+    let ANACTRL = peripherals.ANACTRL;
 
     // Setup default system values
     setup::setup_main_clock_96mhz(&SYSCON);
@@ -16,11 +18,26 @@ fn run() -> ! {
     // Enable GPIO block
     SYSCON
         .ahbclkctrl_ahbclkctrl0()
-        .write(|w| w.gpio1().set_bit());
+        .write(|w| w.gpio1().enable());
     let gpio = peripherals.GPIO;
     // Set output
     gpio.dir[1].write(|w| w.dirp().variant(1 << 9));
     let mut on = true;
+
+    // Setup analog control
+    SYSCON
+        .ahbclkctrl_ahbclkctrl2()
+        .write(|w| w.analog_ctrl().enable().freqme().enable());
+    SYSCON.ahbclkctrl_ahbclkctrl0().write(|w| w.mux().enable());
+    INPUTMUX.freqmeas_ref.write(|w| w.clkin().variant(4)); // 96 Mhz reference
+    INPUTMUX.freqmeas_target.write(|w| w.clkin().variant(4)); // External
+    ANACTRL
+        .freq_me_ctrl
+        .write(|w| w.capval_scale().variant(11).prog().set_bit());
+    while ANACTRL.freq_me_ctrl.read().prog().bit_is_set() {}
+    let freq = (ANACTRL.freq_me_ctrl.read().capval_scale().bits() * 96_000_000) / ((1 << 11) - 1);
+    dbg!(ANACTRL.freq_me_ctrl.read().capval_scale().bits());
+    dbg!(freq);
 
     loop {
         // Delay a bit
