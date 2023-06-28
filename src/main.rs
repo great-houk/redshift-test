@@ -9,8 +9,11 @@ use lpc55_hal as hal;
 use panic_rtt_target as _;
 #[allow(unused)]
 use rtt_target::{rdbg as dbg, rprintln as println};
-use usb_device::device::{UsbDeviceBuilder, UsbVidPid};
-use usb_device::test_class::TestClass;
+use usb_device::{
+    device::{UsbDeviceBuilder, UsbVidPid},
+    UsbError,
+};
+use usbd_serial::{SerialPort, USB_CLASS_CDC};
 
 mod setup;
 
@@ -28,7 +31,7 @@ fn run() -> ! {
     iocon.disabled(&mut syscon); // perfectionist ;)
 
     let clocks = hal::ClockRequirements::default()
-        .system_frequency(96.MHz())
+        .system_frequency(150.MHz())
         .configure(&mut anactrl, &mut pmc, &mut syscon)
         .expect("Clock configuration failed");
 
@@ -48,23 +51,39 @@ fn run() -> ! {
 
     let usb_bus = UsbBus::new(usb_peripheral, usb0_vbus_pin);
 
-    const VID: u16 = 0x16c0;
-    const PID: u16 = 0x05dc;
-    const MANUFACTURER: &'static str = "TestClass Manufacturer";
-    const PRODUCT: &'static str = "virkkunen.net usb-device TestClass";
-    const SERIAL_NUMBER: &'static str = "TestClass Serial";
+    let mut serial = SerialPort::new(&usb_bus);
 
-    let mut test = TestClass::new(&usb_bus);
-    let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(VID, PID))
-        .manufacturer(MANUFACTURER)
-        .product(PRODUCT)
-        .serial_number(SERIAL_NUMBER)
+    let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x1209, 0xcc1d))
+        .manufacturer("nickray")
+        .product("Demo Demo Demo")
+        .serial_number("2019-10-10")
+        .device_release(0x0123)
+        // Must be 64 bytes for HighSpeed
         .max_packet_size_0(64)
+        // .device_class(USB_CLASS_CDC)
         .build();
 
     loop {
-        if usb_dev.poll(&mut [&mut test]) {
-            test.poll();
+        if !usb_dev.poll(&mut [&mut serial]) {
+            continue;
         }
+
+        let mut buf = [0u8; 64];
+
+        match serial.read(&mut buf[..]) {
+            Ok(count) => {
+                // count bytes were read to &buf[..count]
+            }
+            Err(UsbError::WouldBlock) => {} // No data received
+            Err(err) => {}                  // An error occurred
+        };
+
+        match serial.write(&[0x3a, 0x29]) {
+            Ok(count) => {
+                // count bytes were written
+            }
+            Err(UsbError::WouldBlock) => {} // No data could be written (buffers full)
+            Err(err) => {}                  // An error occurred
+        };
     }
 }
