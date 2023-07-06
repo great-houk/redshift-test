@@ -13,7 +13,8 @@ panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
 rtt-target = "0.4.0"
 lpc55-hal = "0.3.0"
 usb-device = "0.2.9"
-usbd-serial = "0.1.1"
+usbd-serial = { path = "../usbd-serial-hs" }
+# usbd-serial = "0.1.1"
 lpc55-usbhs = { path = "../lpc55-usbhs" }
 
 [profile.release]

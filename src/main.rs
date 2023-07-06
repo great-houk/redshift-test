@@ -57,25 +57,18 @@ fn run() -> ! {
             continue;
         }
 
-        let mut buf = [0u8; 64];
+        let mut buf = [0u8; 512];
+        dbg!("Polled");
 
         match serial.read(&mut buf[..]) {
             Ok(count) => {
                 // count bytes were read to &buf[..count]
                 dbg!(count);
+                dbg!(&buf[..count]);
+
+                let _ = serial.write(&buf[..count]);
             }
             Err(UsbError::WouldBlock) => {} // No data received
-            Err(err) => {
-                dbg!(err);
-            } // An error occurred
-        };
-
-        match serial.write(&[0x3a, 0x29]) {
-            Ok(count) => {
-                // count bytes were written
-                dbg!(count);
-            }
-            Err(UsbError::WouldBlock) => {} // No data could be written (buffers full)
             Err(err) => {
                 dbg!(err);
             } // An error occurred
