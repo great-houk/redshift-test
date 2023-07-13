@@ -1,10 +1,7 @@
 #![no_std]
 #![no_main]
 use cortex_m_rt as _;
-use hal::{
-    drivers::{pins, Timer, UsbBus},
-    time::RateExtensions,
-};
+use hal::{drivers::Timer, time::RateExtensions};
 use lpc55_hal as hal;
 use lpc55_usbhs::{UsbHS, UsbHSBus};
 use panic_rtt_target as _;
@@ -58,14 +55,9 @@ fn run() -> ! {
         }
 
         let mut buf = [0u8; 512];
-        dbg!("Polled");
 
         match serial.read(&mut buf[..]) {
             Ok(count) => {
-                // count bytes were read to &buf[..count]
-                dbg!(count);
-                dbg!(&buf[..count]);
-
                 let _ = serial.write(&buf[..count]);
             }
             Err(UsbError::WouldBlock) => {} // No data received
