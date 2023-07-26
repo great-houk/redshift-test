@@ -1,12 +1,14 @@
 #![no_std]
 #![no_main]
 use cortex_m_rt as _;
-use hal::{drivers::Timer, time::RateExtensions};
+use embedded_hal_bus::spi::ExclusiveDevice;
+use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins};
 use lpc55_hal as hal;
 use lpc55_usbhs::{UsbHS, UsbHSBus};
 use panic_rtt_target as _;
 #[allow(unused)]
 use rtt_target::{rdbg as dbg, rprintln as println};
+use spi::{FakeCS, SpiMaster};
 use usb_device::{
     device::{UsbDeviceBuilder, UsbVidPid},
     UsbError,
@@ -14,6 +16,7 @@ use usb_device::{
 use usbd_serial::{SerialPort, USB_CLASS_CDC};
 
 mod setup;
+mod spi;
 
 fn run() -> ! {
     let hal = hal::new();
@@ -21,11 +24,30 @@ fn run() -> ! {
     let mut anactrl = hal.anactrl;
     let mut syscon = hal.syscon;
     let mut pmc = hal.pmc;
+    let mut iocon = hal.iocon.enabled(&mut syscon);
+    let pins = Pins::take().unwrap();
 
     let clocks = hal::ClockRequirements::default()
         .system_frequency(150.MHz())
         .configure(&mut anactrl, &mut pmc, &mut syscon)
         .expect("Clock configuration failed");
+
+    let spi = {
+        let spi = hal
+            .flexcomm
+            .6
+            .enabled_as_spi(&mut syscon, &clocks.support_flexcomm_token().unwrap());
+
+        let sck = pins.pio1_12.into_spi6_sck_pin(&mut iocon);
+        let mosi = pins.pio1_13.into_spi6_mosi_pin(&mut iocon);
+        let miso = pins.pio1_16.into_spi6_miso_pin(&mut iocon);
+        let ncs = pins.pio0_15.into_spi6_cs_pin(&mut iocon);
+        let pins = (sck, mosi, miso, ncs);
+        let speed: Hertz = 20u32.MHz().try_into().unwrap();
+
+        SpiMaster::new(spi, pins, speed, MODE_3)
+    };
+    let device = ExclusiveDevice::new_no_delay(spi, FakeCS);
 
     let mut delay_timer = Timer::new(
         hal.ctimer

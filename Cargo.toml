@@ -16,6 +16,10 @@ usb-device = "0.2.9"
 usbd-serial = { path = "../usbd-serial-hs" }
 # usbd-serial = "0.1.1"
 lpc55-usbhs = { path = "../lpc55-usbhs" }
+nb = "1.1.0"
+# embedded-hal = "0.2.7"
+embedded-hal = "1.0.0-alpha.11"
+embedded-hal-bus = "0.1.0-alpha.3"
 
 [profile.release]
 codegen-units = 1 # better optimizations
