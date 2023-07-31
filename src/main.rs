@@ -2,17 +2,11 @@
 #![no_main]
 use cortex_m_rt as _;
 use delay::Delay;
-use embedded_hal::timer::CountDown;
-use embedded_hal_alpha::{
-    digital::OutputPin,
-    spi::{Operation, SpiDevice},
-};
 use embedded_hal_bus::spi::ExclusiveDevice;
 use gpio::Pin;
-use hal::{drivers::pins::Level::High, UsbBus};
+use hal::UsbBus;
 use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins};
 use lpc55_hal as hal;
-use nb::block;
 use panic_rtt_target as _;
 use paw3399::{Paw3399, Register};
 #[allow(unused)]
