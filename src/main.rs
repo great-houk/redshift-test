@@ -1,20 +1,31 @@
 #![no_std]
 #![no_main]
 use cortex_m_rt as _;
+use delay::Delay;
+use embedded_hal::timer::CountDown;
+use embedded_hal_alpha::{
+    digital::OutputPin,
+    spi::{Operation, SpiDevice},
+};
 use embedded_hal_bus::spi::ExclusiveDevice;
+use gpio::Pin;
+use hal::{drivers::pins::Level::High, UsbBus};
 use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins};
 use lpc55_hal as hal;
-use lpc55_usbhs::{UsbHS, UsbHSBus};
+use nb::block;
 use panic_rtt_target as _;
+use paw3399::{Paw3399, Register};
 #[allow(unused)]
-use rtt_target::{rdbg as dbg, rprintln as println};
-use spi::{FakeCS, SpiMaster};
+use rtt_target::{rdbg as dbg, rprint as print, rprintln as println};
+use spi::SpiMaster;
 use usb_device::{
     device::{UsbDeviceBuilder, UsbVidPid},
     UsbError,
 };
 use usbd_serial::{SerialPort, USB_CLASS_CDC};
 
+mod delay;
+mod gpio;
 mod setup;
 mod spi;
 
@@ -25,6 +36,7 @@ fn run() -> ! {
     let mut syscon = hal.syscon;
     let mut pmc = hal.pmc;
     let mut iocon = hal.iocon.enabled(&mut syscon);
+    let mut gpio = hal.gpio.enabled(&mut syscon);
     let pins = Pins::take().unwrap();
 
     let clocks = hal::ClockRequirements::default()
@@ -32,32 +44,65 @@ fn run() -> ! {
         .configure(&mut anactrl, &mut pmc, &mut syscon)
         .expect("Clock configuration failed");
 
-    let spi = {
+    let spi_device = {
         let spi = hal
             .flexcomm
             .6
             .enabled_as_spi(&mut syscon, &clocks.support_flexcomm_token().unwrap());
-
         let sck = pins.pio1_12.into_spi6_sck_pin(&mut iocon);
         let mosi = pins.pio1_13.into_spi6_mosi_pin(&mut iocon);
         let miso = pins.pio1_16.into_spi6_miso_pin(&mut iocon);
-        let ncs = pins.pio0_15.into_spi6_cs_pin(&mut iocon);
-        let pins = (sck, mosi, miso, ncs);
-        let speed: Hertz = 20u32.MHz().try_into().unwrap();
+        let speed: Hertz = 500u32.Hz().try_into().unwrap();
+        let spi = SpiMaster::new(spi, (sck, mosi, miso), speed, MODE_3);
 
-        SpiMaster::new(spi, pins, speed, MODE_3)
+        let cs: Pin<_, _> = pins
+            .pio0_31
+            .into_gpio_pin(&mut iocon, &mut gpio)
+            .into_output_high()
+            .into();
+        let delay_timer_spi: Delay<_> = Timer::new(
+            hal.ctimer
+                .0
+                .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+        )
+        .into();
+        ExclusiveDevice::new(spi, cs, delay_timer_spi)
     };
-    let device = ExclusiveDevice::new_no_delay(spi, FakeCS);
 
-    let mut delay_timer = Timer::new(
-        hal.ctimer
-            .0
-            .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
-    );
+    let mut sensor = {
+        let delay_timer_sensor: Delay<_> = Timer::new(
+            hal.ctimer
+                .1
+                .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+        )
+        .into();
+        let reset: Pin<_, _> = pins
+            .pio0_15
+            .into_gpio_pin(&mut iocon, &mut gpio)
+            .into_output_low()
+            .into();
+        // SAFTEY: SPI is in mode 3
+        unsafe { Paw3399::new(spi_device, delay_timer_sensor, reset) }.unwrap()
+    };
 
-    let usb = UsbHS::new(hal.usbhs, &mut syscon, &mut pmc, &anactrl, &mut delay_timer);
+    println!("0x{:X} == 0x4F", sensor.read(Register::ProductId).unwrap());
 
-    let usb_bus = UsbHSBus::new(usb);
+    let usb_hs = {
+        let mut delay_timer_usb = Timer::new(
+            hal.ctimer
+                .2
+                .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+        );
+        hal.usbhs.enabled_as_device(
+            &mut anactrl,
+            &mut pmc,
+            &mut syscon,
+            &mut delay_timer_usb,
+            clocks.support_usbhs_token().unwrap(),
+        )
+    };
+
+    let usb_bus = UsbBus::new(usb_hs, pins.pio0_22.into_usb0_vbus_pin(&mut iocon));
 
     let mut serial = SerialPort::new(&usb_bus);
 
