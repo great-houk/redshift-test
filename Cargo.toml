@@ -13,13 +13,14 @@ panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
 rtt-target = "0.4.0"
 lpc55-hal = { path = "../lpc55-hal-hs-fix" }
 usb-device = "0.2.9"
-usbd-serial = { path = "../usbd-serial-hs" }
+# usbd-serial = { path = "../usbd-serial-hs" }
 nb = "1.1.0"
 embedded-hal-alpha = {package = "embedded-hal", version = "1.0.0-alpha.11" }
 embedded-hal = {package = "embedded-hal", version = "0.2.7" }
 embedded-hal-bus = "0.1.0-alpha.3"
 paw3399 = { path = "../paw3399" }
 heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+usbd-hid = "0.6.1"
 
 [profile.release]
 codegen-units = 1 # better optimizations
