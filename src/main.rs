@@ -127,7 +127,7 @@ fn run() -> ! {
     let usb_bus = UsbBus::new(usb_hs, pins.pio0_22.into_usb0_vbus_pin(&mut iocon));
 
     // let mut serial = SerialPort::new(&usb_bus);
-    let mut hid = HIDClass::new(&usb_bus, MouseReport::desc(), 1);
+    let mut hid = HIDClass::new(&usb_bus, MouseReport::desc(), 255);
 
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x1209, 0xcc1d))
         .manufacturer("Tyler")
@@ -136,11 +136,14 @@ fn run() -> ! {
         .device_release(0xBEEF)
         // Must be 64 bytes for HighSpeed
         .max_packet_size_0(64)
-        // .device_class(USB_CLASS_CDC)
         .build();
 
     let mut wiggle = 1;
     loop {
+        if !usb_dev.poll(&mut [&mut hid]) {
+            continue;
+        }
+
         let _ = hid.push_input(&MouseReport {
             x: wiggle,
             y: 0,
@@ -150,10 +153,6 @@ fn run() -> ! {
         });
 
         wiggle *= -1;
-
-        if !usb_dev.poll(&mut [&mut hid]) {
-            continue;
-        }
     }
 
     // loop {
