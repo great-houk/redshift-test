@@ -1,14 +1,19 @@
 #![no_std]
 #![no_main]
+use core::fmt::Write;
 use cortex_m_rt as _;
 use delay::Delay;
+use embedded_hal::{digital::v2::InputPin, timer::CountDown};
+use embedded_hal_alpha::delay::DelayUs;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use gpio::Pin;
 use hal::UsbBus;
 use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins};
+use heapless::String;
 use lpc55_hal as hal;
+use nb::block;
 use panic_rtt_target as _;
-use paw3399::{Paw3399, Register};
+use paw3399::{MotionRead, Paw3399, Register};
 #[allow(unused)]
 use rtt_target::{rdbg as dbg, rprint as print, rprintln as println};
 use spi::SpiMaster;
@@ -46,11 +51,11 @@ fn run() -> ! {
         let sck = pins.pio1_12.into_spi6_sck_pin(&mut iocon);
         let mosi = pins.pio1_13.into_spi6_mosi_pin(&mut iocon);
         let miso = pins.pio1_16.into_spi6_miso_pin(&mut iocon);
-        let speed: Hertz = 500u32.Hz().try_into().unwrap();
+        let speed: Hertz = 500u32.kHz().try_into().unwrap();
         let spi = SpiMaster::new(spi, (sck, mosi, miso), speed, MODE_3);
 
         let cs: Pin<_, _> = pins
-            .pio0_31
+            .pio0_15
             .into_gpio_pin(&mut iocon, &mut gpio)
             .into_output_high()
             .into();
@@ -71,7 +76,7 @@ fn run() -> ! {
         )
         .into();
         let reset: Pin<_, _> = pins
-            .pio0_15
+            .pio1_8
             .into_gpio_pin(&mut iocon, &mut gpio)
             .into_output_low()
             .into();
@@ -79,7 +84,26 @@ fn run() -> ! {
         unsafe { Paw3399::new(spi_device, delay_timer_sensor, reset) }.unwrap()
     };
 
-    println!("0x{:X} == 0x4F", sensor.read(Register::ProductId).unwrap());
+    let motion_pin = pins
+        .pio0_19
+        .into_gpio_pin(&mut iocon, &mut gpio)
+        .into_input();
+
+    // Check sensor status
+    let mut delay: Delay<_> = Timer::new(
+        hal.ctimer
+            .3
+            .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+    )
+    .into();
+    sensor.write(Register::Observation, 0x00).unwrap();
+    delay.delay_ms(600);
+    let res = sensor.read(Register::Observation).unwrap();
+    if res == 0xB7 || res == 0xBF {
+        println!("Sensor Initialized Successfully!");
+    } else {
+        panic!("Sensor failed to start correctly...");
+    }
 
     let usb_hs = {
         let mut delay_timer_usb = Timer::new(
@@ -111,6 +135,15 @@ fn run() -> ! {
         .build();
 
     loop {
+        if motion_pin.is_low().unwrap() {
+            let motion = sensor.motion_read().unwrap();
+            println!("{:?}", motion);
+            const LEN: usize = 6 + 2 + 6 + 1;
+            let mut output: String<LEN> = String::new();
+            writeln!(output, "{}, {}", motion.delta_x, motion.delta_y).unwrap();
+            let _ = serial.write(output.as_bytes());
+        }
+
         if !usb_dev.poll(&mut [&mut serial]) {
             continue;
         }
