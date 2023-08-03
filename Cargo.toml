@@ -25,11 +25,15 @@ lpc55-hal = "0.3.0"
 lpc55-usbhs = { path = "../lpc55-usbhs" }
 
 [profile.release]
-codegen-units = 1 # better optimizations
-debug = true # symbols are nice and they don't increase the size on Flash
-lto = true # better optimizations
+codegen-units = 1
+debug = true
+lto = true
 
-# this lets you use `cargo fix`!
+[profile.dev]
+opt-level = 1
+codegen-units = 1
+lto = true
+
 [[bin]]
 name = "redshift-test"
 test = false
