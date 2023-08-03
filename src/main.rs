@@ -21,10 +21,7 @@ use usb_device::{
     device::{UsbDeviceBuilder, UsbVidPid},
     UsbError,
 };
-use usbd_hid::{
-    descriptor::{MouseReport, SerializedDescriptor},
-    hid_class::HIDClass,
-};
+use usbd_serial::SerialPort;
 
 mod delay;
 mod gpio;
@@ -60,7 +57,7 @@ fn run() -> ! {
 
     let usb_bus = UsbHSBus::new(usb_hs);
 
-    let mut hid = HIDClass::new(&usb_bus, MouseReport::desc(), 1);
+    let mut serial = SerialPort::new(&usb_bus);
 
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x1209, 0xcc1d))
         .manufacturer("Tyler")
@@ -71,20 +68,19 @@ fn run() -> ! {
         .max_packet_size_0(64)
         .build();
 
-    let mut wiggle = 2;
     loop {
-        let _ = hid.push_input(&MouseReport {
-            x: wiggle,
-            y: 0,
-            buttons: 0,
-            wheel: 0,
-            pan: 0,
-        });
-
-        wiggle *= -1;
-
-        if !usb_dev.poll(&mut [&mut hid]) {
+        if !usb_dev.poll(&mut [&mut serial]) {
             continue;
+        }
+
+        let mut buf = [0; 128];
+        match serial.read(&mut buf) {
+            Ok(count) => {
+                let _ = serial.write(&buf[..count]);
+            }
+            Err(err) => {
+                let _ = dbg!(err);
+            }
         }
     }
 }
