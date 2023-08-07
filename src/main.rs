@@ -7,18 +7,18 @@ use embedded_hal::{digital::v2::InputPin, timer::CountDown};
 use embedded_hal_alpha::delay::DelayUs;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use gpio::Pin;
-use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins};
+use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins, UsbBus};
 use heapless::String;
 use lpc55_hal as hal;
-use lpc55_usbhs::{UsbHS, UsbHSBus};
 use nb::block;
 use panic_rtt_target as _;
-use paw3399::{MotionRead, Paw3399, Register};
+use paw3399::{registers as regs, MotionRead, Paw3399};
 #[allow(unused)]
 use rtt_target::{rdbg as dbg, rprint as print, rprintln as println};
 use spi::SpiMaster;
 use usb_device::{
     device::{UsbDeviceBuilder, UsbVidPid},
+    prelude::UsbDeviceState,
     UsbError,
 };
 use usbd_hid::{
@@ -54,7 +54,7 @@ fn run() -> ! {
         let sck = pins.pio1_12.into_spi6_sck_pin(&mut iocon);
         let mosi = pins.pio1_13.into_spi6_mosi_pin(&mut iocon);
         let miso = pins.pio1_16.into_spi6_miso_pin(&mut iocon);
-        let speed: Hertz = 500u32.kHz().try_into().unwrap();
+        let speed: Hertz = 10.MHz().try_into().unwrap();
         let spi = SpiMaster::new(spi, (sck, mosi, miso), speed, MODE_3);
 
         let cs: Pin<_, _> = pins
@@ -99,9 +99,9 @@ fn run() -> ! {
             .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
     )
     .into();
-    sensor.write(Register::Observation, 0x00).unwrap();
+    sensor.write(regs::Observation, 0x00).unwrap();
     delay.delay_ms(600);
-    let res = sensor.read(Register::Observation).unwrap();
+    let res = sensor.read(regs::Observation).unwrap();
     if res == 0xB7 || res == 0xBF {
         println!("Sensor Initialized Successfully!");
     } else {
@@ -114,16 +114,16 @@ fn run() -> ! {
                 .2
                 .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
         );
-        UsbHS::new(
-            hal.usbhs,
-            &mut syscon,
+        hal.usbhs.enabled_as_device(
+            &mut anactrl,
             &mut pmc,
-            &anactrl,
+            &mut syscon,
             &mut delay_timer_usb,
+            clocks.support_usbhs_token().unwrap(),
         )
     };
 
-    let usb_bus = UsbHSBus::new(usb_hs);
+    let usb_bus = UsbBus::new(usb_hs, pins.pio0_22.into_usb0_vbus_pin(&mut iocon));
 
     let mut hid = HIDClass::new(&usb_bus, MouseReport::desc(), 1);
 
@@ -141,9 +141,9 @@ fn run() -> ! {
 
     loop {
         if motion_pin.is_low().unwrap() {
-            let motion = sensor.motion_read().unwrap();
-            delx += motion.delta_x;
-            dely += motion.delta_y;
+            let (delta_x, delta_y) = sensor.motion_read_delta_only().unwrap();
+            delx += delta_x;
+            dely += delta_y;
         }
 
         if !usb_dev.poll(&mut [&mut hid]) {
@@ -155,7 +155,7 @@ fn run() -> ! {
 
         match hid.push_input(&MouseReport {
             x: -dx / 2, // Negative, for some reason
-            y: -dy / 2,
+            y: dy / 2,
             buttons: 0,
             wheel: 0,
             pan: 0,
