@@ -8,18 +8,32 @@ edition = "2021"
 
 [dependencies]
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core"]}
-cortex-m-rt = { version = "0.7.2", features = ["device"] }
+cortex-m-rt = { version = "0.6.15", features = ["device"] }
 panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
 rtt-target = "0.4.0"
-LPC55S28-PAC = { version = "0.1.0", path = "LPC55S28_PAC", features = ["rt", "critical-section"] }
-LPC55S28-USB = { version = "0.1.0", path = "LPC55S28_USB" }
+lpc55-hal = { path = "../lpc55-hal-hs-fix" }
+usb-device = "0.2.9"
+# usbd-serial = { path = "../usbd-serial-hs" }
+nb = "1.1.0"
+embedded-hal-alpha = {package = "embedded-hal", version = "1.0.0-alpha.11" }
+embedded-hal = {package = "embedded-hal", version = "0.2.7" }
+embedded-hal-bus = "0.1.0-alpha.3"
+paw3399 = { path = "../paw3399" }
+heapless = { version = "0.7.16", features = ["ufmt-impl"] }
+usbd-hid = { path = "../usbd-hid" }
+# lpc55-hal = "0.3.0"
+lpc55-usbhs = { path = "../lpc55-usbhs" }
 
 [profile.release]
-codegen-units = 1 # better optimizations
-debug = true # symbols are nice and they don't increase the size on Flash
-lto = true # better optimizations
+codegen-units = 1
+debug = true
+lto = true
 
-# this lets you use `cargo fix`!
+[profile.dev]
+opt-level = 1
+codegen-units = 1
+lto = true
+
 [[bin]]
 name = "redshift-test"
 test = false
