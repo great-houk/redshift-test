@@ -21,10 +21,7 @@ use usb_device::{
     prelude::UsbDeviceState,
     UsbError,
 };
-use usbd_hid::{
-    descriptor::{MouseReport, SerializedDescriptor},
-    hid_class::HIDClass,
-};
+use usbd_serial::{SerialPort, USB_CLASS_CDC};
 
 mod delay;
 mod gpio;
@@ -92,22 +89,6 @@ fn run() -> ! {
         .into_gpio_pin(&mut iocon, &mut gpio)
         .into_input();
 
-    // Check sensor status
-    let mut delay: Delay<_> = Timer::new(
-        hal.ctimer
-            .3
-            .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
-    )
-    .into();
-    sensor.write(regs::Observation, 0x00).unwrap();
-    delay.delay_ms(600);
-    let res = sensor.read(regs::Observation).unwrap();
-    if res == 0xB7 || res == 0xBF {
-        println!("Sensor Initialized Successfully!");
-    } else {
-        panic!("Sensor failed to start correctly...");
-    }
-
     let usb_hs = {
         let mut delay_timer_usb = Timer::new(
             hal.ctimer
@@ -125,7 +106,7 @@ fn run() -> ! {
 
     let usb_bus = UsbBus::new(usb_hs, pins.pio0_22.into_usb0_vbus_pin(&mut iocon));
 
-    let mut hid = HIDClass::new(&usb_bus, MouseReport::desc(), 1);
+    let mut serial = SerialPort::new(&usb_bus);
 
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x1209, 0xcc1d))
         .manufacturer("Tyler")
@@ -133,48 +114,52 @@ fn run() -> ! {
         .serial_number("2023-07-05")
         .device_release(0xBEEF)
         // Must be 64 bytes for HighSpeed
+        .device_class(USB_CLASS_CDC)
         .max_packet_size_0(64)
         .build();
 
-    let mut delx = 0;
-    let mut dely = 0;
-
+    let mut input: String<256> = String::new();
     loop {
-        if motion_pin.is_low().unwrap() {
-            let (delta_x, delta_y) = sensor.motion_read_delta_only().unwrap();
-            delx += delta_x;
-            dely += delta_y;
-        }
-
-        if !usb_dev.poll(&mut [&mut hid]) {
+        if !usb_dev.poll(&mut [&mut serial]) {
             continue;
         }
 
-        let dx = trucate_i16(delx);
-        let dy = trucate_i16(dely);
+        if usb_dev.state() != UsbDeviceState::Configured {
+            continue;
+        }
 
-        match hid.push_input(&MouseReport {
-            x: -dx / 2, // Negative, for some reason
-            y: dy / 2,
-            buttons: 0,
-            wheel: 0,
-            pan: 0,
-        }) {
-            Ok(_) => {
-                delx -= dx as i16;
-                dely -= dy as i16;
+        let mut buf = [0; 128];
+        match serial.read(&mut buf) {
+            Ok(count) => {
+                for &byte in &buf[..count] {
+                    if byte == '\n' as u8 {
+                        match match_command(&input) {
+                            Ok(command) => todo!(),
+                            Err(err) => {
+                                let _ = serial.write(err.as_bytes());
+                            }
+                        }
+                    } else {
+                        if let Err(()) =
+                            input.push_str(core::str::from_utf8(&buf[..count]).unwrap())
+                        {
+                            todo!();
+                        }
+                    }
+                }
+                // Write data back
+                let _ = serial.write(&buf[..count]);
             }
-            Err(_) => {}
+            Err(UsbError::WouldBlock) => {}
+            Err(_) => {
+                let _ = serial.write("Unknown Serial Error\n".as_bytes());
+            }
         }
     }
 }
 
-fn trucate_i16(num: i16) -> i8 {
-    if num > core::i8::MAX as i16 {
-        core::i8::MAX
-    } else if num < core::i8::MIN as i16 {
-        core::i8::MIN
-    } else {
-        num as i8
-    }
+enum Command {}
+
+fn match_command(string: &String<256>) -> Result<Command, &'static str> {
+    Err("Command Not Found")
 }
