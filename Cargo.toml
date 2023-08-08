@@ -27,7 +27,6 @@ lpc55-hal = "0.3.0"
 codegen-units = 1
 debug = true
 lto = true
-opt-level = "s"
 
 [profile.dev]
 opt-level = 1
