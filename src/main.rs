@@ -5,29 +5,46 @@
 use cortex_m_rt as _;
 use panic_rtt_target as _;
 
+mod delay;
+mod gpio;
+mod setup;
+mod spi;
+
 #[rtic::app(device = lpc55_hal::raw, dispatchers = [FLEXCOMM0])]
 mod app {
+    use super::delay::Delay;
+    use super::gpio::Pin;
+    use super::spi::SpiMaster;
     use core::fmt::Write;
+    use cortex_m_rt as _;
+    use embedded_hal::{digital::v2::InputPin, timer::CountDown};
+    use embedded_hal_alpha::delay::DelayUs;
+    use embedded_hal_bus::spi::ExclusiveDevice;
+    use hal::{drivers::Timer, time::*, traits::wg::spi::MODE_3, Pins};
     use heapless::String;
-    use lpc55_hal::{
-        self as hal,
-        drivers::Timer,
-        time::{DurationExtensions, RateExtensions},
-        Pins,
-    };
+    use lpc55_hal as hal;
     use lpc55_usbhs::{UsbHS, UsbHSBus};
+    use nb::block;
+    use panic_rtt_target as _;
+    use paw3399::{registers as regs, MotionRead, Paw3399};
+    #[allow(unused)]
     use rtt_target::{rdbg as dbg, rprint as print, rprintln as println, rtt_init_default};
     use usb_device::{class_prelude::UsbBusAllocator, prelude::*};
-    use usbd_serial::{SerialPort, USB_CLASS_CDC};
+    use usbd_hid::{
+        descriptor::{MouseReport, SerializedDescriptor},
+        hid_class::HIDClass,
+    };
 
     #[shared]
     struct Shared {
-        serial: SerialPort<'static, UsbHSBus>,
-        device: UsbDevice<'static, UsbHSBus>,
+        device_ready: bool,
+        hid: HIDClass<'static, UsbHSBus>,
     }
 
     #[local]
-    struct Local {}
+    struct Local {
+        device: UsbDevice<'static, UsbHSBus>,
+    }
 
     #[init(local = [usb_bus: Option<UsbBusAllocator<UsbHSBus>> = None])]
     fn init(cx: init::Context) -> (Shared, Local) {
@@ -51,6 +68,52 @@ mod app {
             .configure(&mut anactrl, &mut pmc, &mut syscon)
             .expect("Clock configuration failed");
 
+        let spi_device = {
+            let spi = hal
+                .flexcomm
+                .6
+                .enabled_as_spi(&mut syscon, &clocks.support_flexcomm_token().unwrap());
+            let sck = pins.pio1_12.into_spi6_sck_pin(&mut iocon);
+            let mosi = pins.pio1_13.into_spi6_mosi_pin(&mut iocon);
+            let miso = pins.pio1_16.into_spi6_miso_pin(&mut iocon);
+            let speed: Hertz = 10.MHz().try_into().unwrap();
+            let spi = SpiMaster::new(spi, (sck, mosi, miso), speed, MODE_3);
+
+            let cs: Pin<_, _> = pins
+                .pio0_15
+                .into_gpio_pin(&mut iocon, &mut gpio)
+                .into_output_high()
+                .into();
+            let delay_timer_spi: Delay<_> = Timer::new(
+                hal.ctimer
+                    .0
+                    .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+            )
+            .into();
+            ExclusiveDevice::new(spi, cs, delay_timer_spi)
+        };
+
+        let mut sensor = {
+            let delay_timer_sensor: Delay<_> = Timer::new(
+                hal.ctimer
+                    .1
+                    .enabled(&mut syscon, clocks.support_1mhz_fro_token().unwrap()),
+            )
+            .into();
+            let reset: Pin<_, _> = pins
+                .pio1_8
+                .into_gpio_pin(&mut iocon, &mut gpio)
+                .into_output_low()
+                .into();
+            // SAFTEY: SPI is in mode 3
+            unsafe { Paw3399::new(spi_device, delay_timer_sensor, reset) }.unwrap()
+        };
+
+        let motion_pin = pins
+            .pio0_19
+            .into_gpio_pin(&mut iocon, &mut gpio)
+            .into_input();
+
         let usb_hs = {
             let mut delay_timer_usb = Timer::new(
                 hal.ctimer
@@ -68,7 +131,7 @@ mod app {
 
         let bus = cx.local.usb_bus.insert(UsbHSBus::new(usb_hs));
 
-        let serial = SerialPort::new(bus);
+        let hid = HIDClass::new(&bus, MouseReport::desc(), 1);
 
         let device = UsbDeviceBuilder::new(bus, UsbVidPid(0x1209, 0xcc1d))
             .manufacturer("Tyler")
@@ -76,11 +139,16 @@ mod app {
             .serial_number("2023-07-05")
             .device_release(0xBEEF)
             // Must be 64 bytes for HighSpeed
-            .device_class(USB_CLASS_CDC)
             .max_packet_size_0(64)
             .build();
 
-        (Shared { serial, device }, Local {})
+        (
+            Shared {
+                device_ready: false,
+                hid,
+            },
+            Local { device },
+        )
     }
 
     #[idle]
@@ -90,40 +158,11 @@ mod app {
         }
     }
 
-    #[task(binds = USB1, priority = 1, local = [i: u8 = 0], shared = [serial, device])]
-    fn usb(cx: usb::Context) {
-        let int: u32 = unsafe { core::ptr::read_volatile(0x4009_4020 as _) };
-        let cmd: u32 = unsafe { core::ptr::read_volatile(0x4009_4000 as _) };
-        println!("{} USB Int 0x{:X} 0x{:X}", cx.local.i, int, cmd);
-        *cx.local.i = u8::wrapping_add(*cx.local.i, 1);
+    #[task(binds = USB1, priority = 1, local = [device], shared = [hid, device_ready])]
+    fn usb(cx: usb::Context) {}
 
-        let device = cx.shared.device;
-        let serial = cx.shared.serial;
-        (device, serial).lock(|device, serial| {
-            if device.poll(&mut [serial]) && device.state() == UsbDeviceState::Configured {
-                println!("Inner");
-                let _ = echo_serial::spawn();
-            }
-        });
-    }
-
-    #[task(local = [buf: [u8; 256] = [0; 256], string_buf: String<256> = String::new()], shared = [serial, device], priority = 1)]
-    async fn echo_serial(mut cx: echo_serial::Context) {
+    #[task(shared = [device_ready], priority = 1)]
+    async fn send_report(cx: send_report::Context) {
         println!("Echo!");
-
-        cx.shared
-            .serial
-            .lock(|serial| match serial.read(cx.local.buf) {
-                Ok(count) => {
-                    let _ = serial.write(&cx.local.buf[..count]);
-                }
-                Err(UsbError::WouldBlock) => {}
-                Err(err) => {
-                    let buf = cx.local.string_buf;
-                    buf.clear();
-                    write!(buf, "Usb Error: {err:?}").unwrap();
-                    let _ = serial.write(buf.as_bytes());
-                }
-            });
     }
 }
