@@ -3,22 +3,19 @@ use core::convert::Infallible;
 use embedded_hal::digital::v2::{InputPin as OldI, OutputPin as OldO};
 use embedded_hal_alpha::digital::{ErrorType, InputPin, OutputPin};
 use lpc55_hal::{
-    typestates::pin::{
-        gpio::direction::{Input, Output},
-        state::{Gpio, PinState},
-        PinId,
+    typestates::{
+        init_state::InitState,
+        pin::{
+            gpio::direction::{Input, Output},
+            state::{Gpio, PinState},
+            PinId,
+        },
     },
-    Pin as HalPin,
+    Enabled, Pin as HalPin,
 };
-
-enum InterruptMode {}
 
 pub struct Pin<T: PinId, S: PinState> {
     pin: HalPin<T, S>,
-}
-
-impl<T: PinId> Pin<T, Gpio<Input>> {
-    pub fn enable_int(&mut self, int_mode: InterruptMode) {}
 }
 
 impl<T: PinId, S: PinState> From<HalPin<T, S>> for Pin<T, S> {
