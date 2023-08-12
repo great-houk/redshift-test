@@ -1,5 +1,5 @@
+#![allow(unused)]
 use core::convert::Infallible;
-
 use lpc55_hal::{peripherals::ctimer::Ctimer, time::Microseconds, typestates::init_state};
 
 pub struct Timer<TIMER>

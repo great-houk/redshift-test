@@ -15,29 +15,20 @@ mod app {
     use super::delay::Delay;
     use super::gpio::Pin;
     use super::spi::SpiMaster;
-    use core::{fmt::Write, sync::atomic::AtomicBool};
+    use core::sync::atomic::AtomicBool;
     use core::{hint::black_box, sync::atomic::Ordering::Relaxed};
     use cortex_m_rt as _;
-    use embedded_hal::{digital::v2::InputPin, timer::CountDown};
-    use embedded_hal_alpha::delay::DelayUs;
     use embedded_hal_bus::spi::ExclusiveDevice;
-    use hal::{
+    use lpc55_hal::{
         drivers::Timer,
         peripherals::pint::{Mode, Slot},
-        raw::{utick0::CAP, Interrupt},
         time::*,
         traits::wg::spi::MODE_3,
         Pins,
     };
-    use heapless::String;
-    use lpc55_hal::{
-        self as hal, peripherals::ctimer::Ctimer0, typestates::init_state, Enabled, Pint,
-    };
     use lpc55_usbhs::{UsbHS, UsbHSBus};
-    use nb::block;
     use panic_rtt_target as _;
-    use paw3399::{registers as regs, MotionRead, Paw3399};
-    use rtic_sync::{channel::*, make_channel};
+    use paw3399::{MotionRead, Paw3399};
     #[allow(unused)]
     use rtt_target::{rdbg as dbg, rprint as print, rprintln as println, rtt_init_default};
     use usb_device::{class_prelude::UsbBusAllocator, prelude::*};
@@ -49,16 +40,13 @@ mod app {
     #[shared]
     struct Shared {
         hid: HIDClass<'static, UsbHSBus>,
+        sensor: sensor_type::Sensor,
+        usb_ready: AtomicBool,
     }
 
     #[local]
     struct Local {
         device: UsbDevice<'static, UsbHSBus>,
-        sensor: sensor_type::Sensor,
-        pint: Pint<Enabled>,
-        pint_sender: Sender<'static, Message, CAPACITY>,
-        usb_sender: Sender<'static, Message, CAPACITY>,
-        receiver: Receiver<'static, Message, CAPACITY>,
     }
     mod sensor_type {
         use crate::{delay::Delay, gpio::Pin as CPin, spi::SpiMaster};
@@ -99,8 +87,6 @@ mod app {
         >;
     }
 
-    const CAPACITY: usize = 8;
-
     #[inline(never)]
     fn breakpt() {
         black_box(cortex_m::asm::nop());
@@ -115,7 +101,7 @@ mod app {
         black_box(breakpt());
         println!("Start up finished!");
 
-        let hal = hal::from((cx.device, cx.core.into()));
+        let hal = lpc55_hal::from((cx.device, cx.core.into()));
 
         let mut anactrl = hal.anactrl;
         let mut syscon = hal.syscon;
@@ -126,7 +112,7 @@ mod app {
         let mut inputmux = hal.inputmux.enabled(&mut syscon);
         let pins = Pins::take().unwrap();
 
-        let clocks = hal::ClockRequirements::default()
+        let clocks = lpc55_hal::ClockRequirements::default()
             .system_frequency(150.MHz())
             .configure(&mut anactrl, &mut pmc, &mut syscon)
             .expect("Clock configuration failed");
@@ -176,7 +162,7 @@ mod app {
             .pio0_19
             .into_gpio_pin(&mut iocon, &mut gpio)
             .into_input();
-        pint.enable_interrupt(&mut inputmux, &motion_pin, Slot::Slot0, Mode::FallingEdge);
+        pint.enable_interrupt(&mut inputmux, &motion_pin, Slot::Slot0, Mode::ActiveLow);
 
         let usb_hs = {
             let mut delay_timer_usb = Timer::new(
@@ -206,18 +192,13 @@ mod app {
             .max_packet_size_0(64)
             .build();
 
-        let (s, r) = make_channel!(Message, CAPACITY);
-
         (
-            Shared { hid },
-            Local {
-                device,
+            Shared {
+                hid,
                 sensor,
-                pint,
-                pint_sender: s.clone(),
-                usb_sender: s,
-                receiver: r,
+                usb_ready: AtomicBool::new(false),
             },
+            Local { device },
         )
     }
 
@@ -228,59 +209,31 @@ mod app {
         }
     }
 
-    #[task(binds = USB1, priority = 2, local = [device, usb_sender, ready: bool = false], shared = [hid])]
+    #[task(binds = USB1, priority = 3, local = [device], shared = [hid, &usb_ready])]
     fn usb(mut cx: usb::Context) {
         if cx.shared.hid.lock(|hid| cx.local.device.poll(&mut [hid])) {
-            if cx.local.device.state() == UsbDeviceState::Configured && !*cx.local.ready {
+            if cx.local.device.state() == UsbDeviceState::Configured
+                && !cx.shared.usb_ready.load(Relaxed)
+            {
                 // Start sensor reading
                 println!("Usb Connected!");
-                if let Ok(()) = cx.local.usb_sender.try_send(Message::StartReading) {
-                    *cx.local.ready = true;
-                    rtic::pend(Interrupt::PIN_INT0);
-                    sensor::spawn().unwrap();
-                }
+                cx.shared.usb_ready.store(true, Relaxed);
             }
         }
     }
 
-    #[task(binds = PIN_INT0, local = [pint, pint_sender])]
-    fn motion_pin(cx: motion_pin::Context) {
-        // Clear interrupt
-        cx.local.pint.ist.write(|w| unsafe { w.pstat().bits(1) });
-        // Send motion read
-        if let Err(err) = cx.local.pint_sender.try_send(Message::MotionRead) {
-            dbg!(err);
-        }
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum Message {
-        StartReading,
-        MotionRead,
-    }
-
-    #[task(priority = 1, local = [sensor, receiver, start: bool = false, dx: i16 = 0, dy: i16 = 0], shared = [hid])]
-    async fn sensor(mut cx: sensor::Context) {
-        while let Ok(msg) = cx.local.receiver.recv().await {
-            // Parse message
-            match msg {
-                Message::StartReading => *cx.local.start = true,
-                Message::MotionRead => {
-                    if *cx.local.start {
-                        if let Ok(r) = cx.local.sensor.motion_read() {
-                            let MotionRead {
-                                delta_x, delta_y, ..
-                            } = dbg!(r);
-                            *cx.local.dx += dbg!(delta_x);
-                            *cx.local.dy += dbg!(delta_y);
-                        }
-                    }
-                }
-            }
-            // Send HID report
-            if *cx.local.dx != 0 && *cx.local.dy != 0 {
-                let (x, y) = (trim_i16(cx.local.dx), trim_i16(cx.local.dy));
-                match cx.shared.hid.lock(|hid| {
+    #[task(binds = PIN_INT0, local = [dx: i16 = 0, dy: i16 = 0], shared = [sensor, hid, &usb_ready])]
+    fn motion_pin(mut cx: motion_pin::Context) {
+        if cx.shared.usb_ready.load(Relaxed) {
+            if let Ok(MotionRead {
+                delta_x, delta_y, ..
+            }) = cx.shared.sensor.lock(|sensor| sensor.motion_read())
+            {
+                *cx.local.dx += delta_x;
+                *cx.local.dy += delta_y;
+                let x = trim_i16(cx.local.dx);
+                let y = trim_i16(cx.local.dy);
+                let _ = cx.shared.hid.lock(|hid| {
                     hid.push_input(&MouseReport {
                         buttons: 0,
                         x,
@@ -288,13 +241,7 @@ mod app {
                         wheel: 0,
                         pan: 0,
                     })
-                }) {
-                    Ok(_) => {}
-                    Err(_) => {
-                        *cx.local.dx += x as i16;
-                        *cx.local.dy += y as i16;
-                    }
-                }
+                });
             }
         }
     }

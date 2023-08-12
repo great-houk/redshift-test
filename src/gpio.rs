@@ -3,15 +3,12 @@ use core::convert::Infallible;
 use embedded_hal::digital::v2::{InputPin as OldI, OutputPin as OldO};
 use embedded_hal_alpha::digital::{ErrorType, InputPin, OutputPin};
 use lpc55_hal::{
-    typestates::{
-        init_state::InitState,
-        pin::{
-            gpio::direction::{Input, Output},
-            state::{Gpio, PinState},
-            PinId,
-        },
+    typestates::pin::{
+        gpio::direction::{Input, Output},
+        state::{Gpio, PinState},
+        PinId,
     },
-    Enabled, Pin as HalPin,
+    Pin as HalPin,
 };
 
 pub struct Pin<T: PinId, S: PinState> {

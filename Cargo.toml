@@ -23,9 +23,7 @@ lpc55-usbhs = { path = "../lpc55-usbhs" }
 usbd-serial = { path = "../usbd-serial-hs" }
 usbd-hid = { path = "../usbd-hid" }
 paw3399 = { path = "../paw3399" }
-rtic-sync = "1.0.1"
 critical-section = "1.1.2"
-# lpc55-hal = { path = "../lpc55-hal-hs-fix" }
 
 [profile.release]
 codegen-units = 1
