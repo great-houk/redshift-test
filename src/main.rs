@@ -20,6 +20,7 @@ mod app {
     use lpc55_hal::{
         drivers::Timer,
         peripherals::pint::{Mode, Slot},
+        raw::Interrupt,
         time::*,
         traits::wg::spi::MODE_3,
         Pins,
@@ -103,7 +104,7 @@ mod app {
         rtt_target::set_print_channel(rtt.up.0);
         // Saftey Delay, so it's possible to halt before user code runs
         cortex_m::asm::delay(10_000_000);
-        black_box(breakpt());
+        breakpt();
         println!("Start up finished!");
 
         let hal = lpc55_hal::from((cx.device, cx.core.into()));
@@ -217,17 +218,18 @@ mod app {
 
     #[task(binds = USB1, priority = 3, local = [device], shared = [hid, &usb_state])]
     fn usb(mut cx: usb::Context) {
+        // Poll USB and update state
         if cx.shared.hid.lock(|hid| cx.local.device.poll(&mut [hid])) {
-            // Remote wake-up
-            if cx.local.device.state() == UsbDeviceState::Suspend
-                && cx.shared.usb_state.load(Relaxed).0 == UsbDeviceState::Default
-            {
-                cx.local.device.bus().resume();
-            }
-
             cx.shared
                 .usb_state
                 .store(Wrap(cx.local.device.state()), Relaxed);
+        }
+
+        // Remote wake-up
+        if cx.local.device.state() == UsbDeviceState::Suspend
+            && cx.shared.usb_state.load(Relaxed).0 == UsbDeviceState::Default
+        {
+            cx.local.device.bus().resume();
         }
     }
 
@@ -253,9 +255,11 @@ mod app {
                 });
             }
         } else if cx.shared.usb_state.load(Relaxed).0 == UsbDeviceState::Suspend {
+            // Remote wakeup
             cx.shared
                 .usb_state
                 .store(Wrap(UsbDeviceState::Default), Relaxed);
+            rtic::pend(Interrupt::USB1);
         }
     }
 
