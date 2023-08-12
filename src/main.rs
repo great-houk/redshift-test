@@ -12,10 +12,8 @@ mod timer;
 
 #[rtic::app(device = lpc55_hal::raw, dispatchers = [FLEXCOMM0])]
 mod app {
-    use super::delay::Delay;
-    use super::gpio::Pin;
-    use super::spi::SpiMaster;
-    use core::sync::atomic::AtomicBool;
+    use super::{delay::Delay, gpio::Pin, spi::SpiMaster};
+    use atomic::Atomic;
     use core::{hint::black_box, sync::atomic::Ordering::Relaxed};
     use cortex_m_rt as _;
     use embedded_hal_bus::spi::ExclusiveDevice;
@@ -31,7 +29,10 @@ mod app {
     use paw3399::{MotionRead, Paw3399};
     #[allow(unused)]
     use rtt_target::{rdbg as dbg, rprint as print, rprintln as println, rtt_init_default};
-    use usb_device::{class_prelude::UsbBusAllocator, prelude::*};
+    use usb_device::{
+        class_prelude::{UsbBus, UsbBusAllocator},
+        prelude::*,
+    };
     use usbd_hid::{
         descriptor::{MouseReport, SerializedDescriptor},
         hid_class::HIDClass,
@@ -41,8 +42,12 @@ mod app {
     struct Shared {
         hid: HIDClass<'static, UsbHSBus>,
         sensor: sensor_type::Sensor,
-        usb_ready: AtomicBool,
+        usb_state: Atomic<Wrap>,
     }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Wrap(pub UsbDeviceState);
+    unsafe impl bytemuck::NoUninit for Wrap {}
 
     #[local]
     struct Local {
@@ -188,6 +193,7 @@ mod app {
             .product("Test Serial! 🌈")
             .serial_number("2023-07-05")
             .device_release(0xBEEF)
+            .supports_remote_wakeup(true)
             // Must be 64 bytes for HighSpeed
             .max_packet_size_0(64)
             .build();
@@ -196,7 +202,7 @@ mod app {
             Shared {
                 hid,
                 sensor,
-                usb_ready: AtomicBool::new(false),
+                usb_state: Atomic::new(Wrap(UsbDeviceState::Default)),
             },
             Local { device },
         )
@@ -209,22 +215,25 @@ mod app {
         }
     }
 
-    #[task(binds = USB1, priority = 3, local = [device], shared = [hid, &usb_ready])]
+    #[task(binds = USB1, priority = 3, local = [device], shared = [hid, &usb_state])]
     fn usb(mut cx: usb::Context) {
         if cx.shared.hid.lock(|hid| cx.local.device.poll(&mut [hid])) {
-            if cx.local.device.state() == UsbDeviceState::Configured
-                && !cx.shared.usb_ready.load(Relaxed)
+            // Remote wake-up
+            if cx.local.device.state() == UsbDeviceState::Suspend
+                && cx.shared.usb_state.load(Relaxed).0 == UsbDeviceState::Default
             {
-                // Start sensor reading
-                println!("Usb Connected!");
-                cx.shared.usb_ready.store(true, Relaxed);
+                cx.local.device.bus().resume();
             }
+
+            cx.shared
+                .usb_state
+                .store(Wrap(cx.local.device.state()), Relaxed);
         }
     }
 
-    #[task(binds = PIN_INT0, local = [dx: i16 = 0, dy: i16 = 0], shared = [sensor, hid, &usb_ready])]
+    #[task(binds = PIN_INT0, local = [dx: i16 = 0, dy: i16 = 0], shared = [sensor, hid, &usb_state])]
     fn motion_pin(mut cx: motion_pin::Context) {
-        if cx.shared.usb_ready.load(Relaxed) {
+        if cx.shared.usb_state.load(Relaxed).0 == UsbDeviceState::Configured {
             if let Ok(MotionRead {
                 delta_x, delta_y, ..
             }) = cx.shared.sensor.lock(|sensor| sensor.motion_read())
@@ -243,6 +252,10 @@ mod app {
                     })
                 });
             }
+        } else if cx.shared.usb_state.load(Relaxed).0 == UsbDeviceState::Suspend {
+            cx.shared
+                .usb_state
+                .store(Wrap(UsbDeviceState::Default), Relaxed);
         }
     }
 
