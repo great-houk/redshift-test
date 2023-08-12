@@ -11,7 +11,6 @@ cortex-m = { version = "0.7.7", features = ["critical-section-single-core"]}
 cortex-m-rt = { version = "0.6.15", features = ["device"] }
 panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
 rtt-target = "0.4.0"
-lpc55-hal = { path = "../lpc55-hal-hs-fix" }
 usb-device = "0.2.9"
 embedded-hal-bus = "0.1.0-alpha.3"
 lpc55-hal = { version = "0.3.0", features = ["lpc55-rtic", "rtic-peripherals"] }
@@ -22,6 +21,7 @@ usbd-hid = "0.6.1"
 critical-section = "1.1.2"
 atomic = "0.6.0"
 bytemuck = "1.13.1"
+nb = "1.1.0"
 lpc55-usbhs = { git = "https://github.com/great-houk/lpc55-usbhs" }
 paw3399 = { git = "https://github.com/great-houk/paw3399" }
 # usbd-serial = { git = "https://github.com/great-houk/usbd-serial-hs" }

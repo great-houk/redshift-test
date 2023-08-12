@@ -191,7 +191,7 @@ mod app {
 
         let device = UsbDeviceBuilder::new(bus, UsbVidPid(0x1209, 0xcc1d))
             .manufacturer("Tyler")
-            .product("Test Serial! 🌈")
+            .product("Test Mouse! 🌈")
             .serial_number("2023-07-05")
             .device_release(0xBEEF)
             .supports_remote_wakeup(true)
@@ -242,6 +242,8 @@ mod app {
             {
                 *cx.local.dx += delta_x;
                 *cx.local.dy += delta_y;
+            }
+            if *cx.local.dx != 0 || *cx.local.dy != 0 {
                 let x = trim_i16(cx.local.dx);
                 let y = trim_i16(cx.local.dy);
                 let _ = cx.shared.hid.lock(|hid| {
