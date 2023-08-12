@@ -129,11 +129,13 @@ where
         let mut i = 0;
         while i < len {
             let mut read_index = i;
+            const SIZE: usize = 8;
 
             // Write as much as possible
             while self.spi.fifostat.read().rxfull().bit_is_clear()
                 && self.spi.fifostat.read().txnotfull().bit_is_set()
                 && i < len
+                && i - read_index < SIZE
             {
                 let mut byte = 0x00;
                 if let Some(write) = write {

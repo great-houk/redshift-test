@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 use embedded_hal::digital::v2::{InputPin as OldI, OutputPin as OldO};
 use embedded_hal_alpha::digital::{ErrorType, InputPin, OutputPin};
 use lpc55_hal::{
@@ -20,7 +22,7 @@ impl<T: PinId, S: PinState> From<HalPin<T, S>> for Pin<T, S> {
 }
 
 impl<T: PinId, S: PinState> ErrorType for Pin<T, S> {
-    type Error = core::convert::Infallible;
+    type Error = Infallible;
 }
 
 impl<T: PinId> InputPin for Pin<T, Gpio<Input>> {
