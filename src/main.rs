@@ -13,7 +13,7 @@ use lpc55_hal as hal;
 use lpc55_usbhs::{UsbHS, UsbHSBus};
 use nb::block;
 use panic_rtt_target as _;
-use paw3399::{MotionRead, Paw3399, Register};
+use paw3399::{registers, MotionRead, Paw3399};
 #[allow(unused)]
 use rtt_target::{rdbg as dbg, rprint as print, rprintln as println};
 use spi::SpiMaster;
